@@ -593,6 +593,31 @@ entityState:
   Indexes:
     PRIMARY: { Name: PRIMARY, Columns: [entity_state_id], Unique: true, Type: BTREE }
     entityState_device_id_index: { Name: entityState_device_id_index, Columns: [device_id], Unique: false, Type: BTREE }
+distributed_poller:
+  Columns:
+    - { Field: id, Type: 'int(10) unsigned', 'Null': false, Extra: auto_increment }
+    - { Field: cluster_name, Type: varchar(255), 'Null': false, Extra: '' }
+    - { Field: node_id, Type: varchar(255), 'Null': false, Extra: '' }
+    - { Field: poller_version, Type: varchar(255), 'Null': false, Extra: '', Default: '' }
+    - { Field: poller_groups, Type: varchar(255), 'Null': false, Extra: '', Default: '' }
+    - { Field: last_report, Type: datetime, 'Null': false, Extra: '' }
+  Indexes:
+    PRIMARY: { Name: PRIMARY, Columns: [id], Unique: true, Type: BTREE }
+    cluster_name_node_id_unique: { Name: cluster_name_node_id_unique, Columns: [cluster_name, node_id], Unique: true, Type: BTREE }
+distributed_poller_stats:
+  Columns:
+    - { Field: id, Type: 'int(10) unsigned', 'Null': false, Extra: auto_increment }
+    - { Field: cluster_name, Type: varchar(255), 'Null': false, Extra: '' }
+    - { Field: poller_type, Type: varchar(64), 'Null': false, Extra: '' }
+    - { Field: workers, Type: 'int(10) unsigned', 'Null': false, Extra: '', Default: '0' }
+    - { Field: frequency, Type: 'int(10) unsigned', 'Null': false, Extra: '', Default: '0' }
+    - { Field: depth, Type: 'int(10) unsigned', 'Null': false, Extra: '', Default: '0' }
+    - { Field: devices, Type: 'int(10) unsigned', 'Null': false, Extra: '', Default: '0' }
+    - { Field: worker_seconds, Type: 'double unsigned', 'Null': false, Extra: '', Default: '0.0' }
+    - { Field: last_report, Type: datetime, 'Null': false, Extra: '' }
+  Indexes:
+    PRIMARY: { Name: PRIMARY, Columns: [id], Unique: true, Type: BTREE }
+    cluster_name_poller_type: { Name: cluster_name_poller_type, Columns: [cluster_name, poller_type], Unique: true, Type: BTREE }
 entPhysical:
   Columns:
     - { Field: entPhysical_id, Type: 'int(10) unsigned', 'Null': false, Extra: auto_increment }
