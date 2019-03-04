@@ -172,4 +172,128 @@ if (count($rows) !== 0) {
     </div>
 </div>';
 }
+
+
+$query = 'SELECT *,UNIX_TIMESTAMP(NOW()) AS `now`, UNIX_TIMESTAMP(`last_report`) AS `then` FROM `distributed_poller` ORDER BY `last_report` DESC';
+$rows = dbFetchRows($query);
+
+if (count($rows) !== 0) {
+    echo '
+
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title">Distributed Poller Health</h3>
+    </div>
+    <div class="panel-body">
+    <div class="table-responsive">
+        <table class="table table-striped table-bordered table-condensed">
+            <tr>
+                <th>Cluster</th>
+                <th>Name</th>
+                <th>Version</th>
+                <th>Groups Served</th>
+                <th>Last Checkin <small>[1]</small></th>
+                <th>Actions</th>
+            </tr>';
+
+    foreach ($rows as $poller) {
+        $old = ($poller['now'] - $poller['then']);
+        $step = Config::get('rrd.step', 300);
+
+        if ($old >= $step) {
+            $row_class = 'danger';
+        } elseif ($old >= ($step * 0.95)) {
+            $row_class = 'warning';
+        } else {
+            $row_class = 'success';
+        }
+
+        $actions = "";
+        if (\Auth::user()->hasGlobalAdmin() && $old > ($step * 2)) {
+            // missed 2 polls show delete button
+            $actions .= "<button type='button' class='btn btn-danger btn-sm' aria-label='Delete' data-toggle='modal' data-target='#confirm-delete' data-id='{$poller['id']}' data-pollertype='delete-distributed-poller' name='delete-distributed-poller'><i class='fa fa-trash' aria-hidden='true'></i></button>";
+        }
+
+        echo '<tr class="'.$row_class.'" id="row_' . $poller['id'] . '">';
+        echo '
+                <td>'.$poller['cluster_name'].'</td>
+                <td>'.$poller['node_id'].'</td>
+                <td>'.$poller['poller_version'].'</td>
+                <td>'.$poller['poller_groups'].'</td>
+                <td>'.$poller['last_report'].'</td>
+                <td rowspan="'.$stat_count.'">'.$actions.'</td>';
+        echo '</tr>';
+    }
+    echo '</table>
+        </div>
+      </div>
+    </div>';
+
+    echo '
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">Distributed Poller Performance</h3>
+            </div>
+            <div class="panel-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-bordered table-condensed">
+                    <tr>
+                        <th>Cluster</th>
+                        <th>Job</th>
+                        <th>Devices Actioned<br/><small>Last Interval</small></th>
+                        <th>Devices Pending <small>[2]</small></th>
+                        <th>Workers</th>
+                        <th>Frequency</th>
+                        <th>Worker Seconds <small>[3]</small><br/><small>Consumed/Maximum</small></th>
+                        <th>Last Report</th>
+                    </tr>';
+
+    $stat_query = 'SELECT * FROM `distributed_poller_stats` ORDER BY `last_report` DESC;';
+    $stat_row = dbFetchRows($stat_query);
+    $stat_count = count($stat_row);
+
+    foreach ($stat_row as $stats) {
+        $cluster_query = 'SELECT COUNT(*) AS `cnt` FROM `distributed_poller` WHERE `cluster_name`="'.$stats['cluster_name'].'";';
+        $cluster_stats = dbFetchRow($cluster_query);
+
+        echo '<tr>
+                <td>'.$stats['cluster_name'].'</td>
+                <td>'.$stats['poller_type'].'</td>
+                <td>'.$stats['devices'].'</td>
+                <td>'.$stats['depth'].'</td>
+                <td>'.$stats['workers'].'</td>
+                <td>'.$stats['frequency'].'</td>
+                <td>'.$stats['worker_seconds'].' / '.$stats['frequency']*$stats['workers']*$cluster_stats['cnt'].'</td>
+                <td>'.$stats['last_report'].'</td>
+              </tr>';
+      }
+
+    echo '
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="panel panel-default">
+    <div class="panel-heading">Footnotes</div>
+    <div class="panel-body">
+      <ol class="small">
+        <li id="foot-1">
+          This value represents the most recent time the given worker has responded to a heartbeat message.
+        </li>
+        <li id="foot-2">
+          Pending devices displays the number of devices which failed to be polled during the last job.
+          Failures while polling may occur for a number of reasons and usually indicate devices or services
+          which are down or otherwise unreachable.
+        </li>
+        <li id="foot-3">
+          Worker seconds show the actual and the maximum polling throughput the cluster may achieve. If the
+          consumed time exceeds the maximum, consider increasingy parallelism by adding more nodes, adjusting
+          the worker count or tuning your poller groups. If these changes fail to reduce the consumed (wall)
+          time, it is likely that your cluster is resource-limited and it will be necessary to increase the
+          relevant polling interval(s).
+        </li>
+      </ol>
+    </div>
+  </div>';
+}
 ?>
