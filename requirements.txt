@@ -1,3 +1,5 @@
 PyMySQL
 python-dotenv
 redis
+
+celery~=4.2.1
