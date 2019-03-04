@@ -1,18 +1,20 @@
-import random
 import threading
 import traceback
+import sys
+
 from logging import debug, info, error, critical
 from multiprocessing import Queue
 from subprocess import CalledProcessError
+from queue import Empty
 
-import sys
+from LibreNMS.utils import RecurringTimer, RedisQueue
 
-import LibreNMS
 
-if sys.version_info[0] < 3:
-    from Queue import Empty
-else:
-    from queue import Empty
+def get_queue_name(queue_type, group):
+    if queue_type and type(group) == int:
+        return "{}:{}".format(queue_type, group)
+    else:
+        raise ValueError("Refusing to create improperly scoped queue - parameters were invalid or not set")
 
 
 class QueueManager:
@@ -129,7 +131,7 @@ class QueueManager:
         return getattr(self.config, self.type)
 
     def get_queue(self, group):
-        name = self.queue_name(self.type, group)
+        name = get_queue_name(self.type, group)
 
         if name not in self._queues.keys():
             with self._queue_create_lock:
@@ -145,16 +147,15 @@ class QueueManager:
         :param group:
         :return:
         """
-        info("Creating queue {}".format(self.queue_name(queue_type, group)))
+        info("Creating queue {}".format(get_queue_name(queue_type, group)))
         try:
-            return LibreNMS.RedisQueue(self.queue_name(queue_type, group),
-                                       namespace='librenms.queue',
-                                       host=self.config.redis_host,
-                                       port=self.config.redis_port,
-                                       db=self.config.redis_db,
-                                       password=self.config.redis_pass,
-                                       unix_socket_path=self.config.redis_socket
-                                       )
+            return RedisQueue(get_queue_name(queue_type, group),
+                              namespace='librenms.queue',
+                              host=self.config.redis_host,
+                              port=self.config.redis_port,
+                              db=self.config.redis_db,
+                              password=self.config.redis_pass,
+                              unix_socket_path=self.config.redis_socket)
         except ImportError:
             if self.config.distributed:
                 critical("ERROR: Redis connection required for distributed polling")
@@ -167,13 +168,6 @@ class QueueManager:
                 exit(2)
 
         return Queue()
-
-    @staticmethod
-    def queue_name(queue_type, group):
-        if queue_type and type(group) == int:
-            return "{}:{}".format(queue_type, group)
-        else:
-            raise ValueError("Refusing to create improperly scoped queue - parameters were invalid or not set")
 
 
 class TimedQueueManager(QueueManager):
@@ -188,7 +182,7 @@ class TimedQueueManager(QueueManager):
         :param auto_start: automatically start worker threads
         """
         QueueManager.__init__(self, config, type_desc, work_function, auto_start)
-        self.timer = LibreNMS.RecurringTimer(self.get_poller_config().frequency, dispatch_function)
+        self.timer = RecurringTimer(self.get_poller_config().frequency, dispatch_function)
 
     def start_dispatch(self):
         """
@@ -223,7 +217,7 @@ class BillingQueueManager(TimedQueueManager):
         :param auto_start: automatically start worker threads
         """
         TimedQueueManager.__init__(self, config, 'billing', work_function, poll_dispatch_function, auto_start)
-        self.calculate_timer = LibreNMS.RecurringTimer(self.get_poller_config().calculate, calculate_dispatch_function, 'calculate_billing_timer')
+        self.calculate_timer = RecurringTimer(self.get_poller_config().calculate, calculate_dispatch_function, 'calculate_billing_timer')
 
     def start_dispatch(self):
         """
